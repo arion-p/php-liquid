@@ -11,6 +11,8 @@
 
 namespace Liquid\Tag;
 
+use ArrayIterator;
+use LimitIterator;
 use Liquid\AbstractBlock;
 use Liquid\Exception\ParseException;
 use Liquid\Liquid;
@@ -115,12 +117,18 @@ class TagFor extends AbstractBlock
 	{
 		$collection = $context->get($this->collectionName);
 
-		if ($collection instanceof \Traversable) {
+		$isTraversable = $collection instanceof \Traversable;
+		if ($isTraversable && !($collection instanceof \Countable)) {
 			$collection = iterator_to_array($collection);
+			$isTraversable = false;
 		}
 
-		if (is_null($collection) || !is_array($collection) || count($collection) == 0) {
+		if (is_null($collection) || !(is_array($collection) || $isTraversable) || count($collection) == 0) {
 			return '';
+		}
+
+		if (is_array($collection)) {
+			$collection = new ArrayIterator($collection);
 		}
 
 		$range = array(0, count($collection));
@@ -133,20 +141,20 @@ class TagFor extends AbstractBlock
 			}
 
 			$limit = (isset($this->attributes['limit'])) ? $context->get($this->attributes['limit']) : null;
-			$rangeEnd = $limit ? $limit : count($collection) - $offset;
-			$range = array($offset, $rangeEnd);
+			$rangeEnd = $limit ? min($limit + $offset, count($collection)) : count($collection);
+			$range = array($offset, max(0, $rangeEnd - $offset));
 
-			$context->registers['for'][$this->name] = $rangeEnd + $offset;
+			$context->registers['for'][$this->name] = $rangeEnd;
 		}
 
 		$result = '';
-		$segment = array_slice($collection, $range[0], $range[1]);
-		if (!count($segment)) {
+		$length = $range[1];
+		if (!$length) {
 			return null;
 		}
+		$segment = new LimitIterator($collection, $range[0], $range[1]);
 
 		$context->push();
-		$length = count($segment);
 
 		$index = 0;
 		foreach ($segment as $key => $item) {

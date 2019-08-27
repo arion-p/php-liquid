@@ -11,6 +11,7 @@
 
 namespace Liquid\Tag;
 
+use LimitIterator;
 use Liquid\AbstractBlock;
 use Liquid\Exception\ParseException;
 use Liquid\Liquid;
@@ -107,11 +108,13 @@ class TagPaginate extends AbstractBlock
 	{
 		$this->collection = $context->get($this->collectionName);
 
-		if ($this->collection instanceof \Traversable) {
+		$isTraversable = $this->collection instanceof \Traversable;
+		$isCountable = $this->collection instanceof \Countable;
+		if ($isTraversable && !$isCountable) {
 			$this->collection = iterator_to_array($this->collection);
 		}
 
-		if (!is_array($this->collection)) {
+		if (!is_array($this->collection) && !($isTraversable && $isCountable)) {
 			// TODO do not throw up if error mode allows, see #83
 			throw new RenderException("Missing collection with name '{$this->collectionName}'");
 		}
@@ -128,7 +131,11 @@ class TagPaginate extends AbstractBlock
 
 		// Find the offset and select that part
 		$this->currentOffset = ($this->currentPage - 1) * $this->numberItems;
-		$paginatedCollection = array_slice($this->collection, $this->currentOffset, $this->numberItems);
+		if ($isTraversable) {
+			$paginatedCollection = new LimitIterator($this->collection, $this->currentOffset, $this->numberItems);
+		} else {
+			$paginatedCollection = array_slice($this->collection, $this->currentOffset, $this->numberItems);
+		}
 
 		// We must work in a new scope so we won't pollute a global scope
 		$context->push();

@@ -11,7 +11,9 @@
 
 namespace Liquid;
 
+use LimitIterator;
 use Liquid\Exception\RenderException;
+use Liquid\Iterators\MapIterator;
 
 /**
  * A selection of standard filters.
@@ -261,24 +263,26 @@ class StandardFilters
 	 * @param array|\Traversable $input
 	 * @param string $property
 	 *
-	 * @return string
+	 * @return array|\Traversable
 	 */
 	public static function map($input, $property)
 	{
-		if ($input instanceof \Traversable) {
-			$input = iterator_to_array($input);
-		}
-		if (!is_array($input)) {
-			return $input;
-		}
-		return array_map(function ($elem) use ($property) {
+		$map_elem = function ($elem) use ($property) {
 			if (is_callable($elem)) {
 				return $elem();
 			} elseif (is_array($elem) && array_key_exists($property, $elem)) {
 				return $elem[$property];
 			}
 			return null;
-		}, $input);
+		};
+
+		if ($input instanceof \Traversable) {
+			return new MapIterator($map_elem, $input);
+		}
+		if (!is_array($input)) {
+			return $input;
+		}
+		return array_map($map_elem, $input);
 	}
 	
 
@@ -501,9 +505,8 @@ class StandardFilters
 	public static function slice($input, $offset, $length = null)
 	{
 		if ($input instanceof \Iterator) {
-			$input = iterator_to_array($input);
-		}
-		if (is_array($input)) {
+			$input = new LimitIterator($input, $offset, $length ?? -1);
+		} elseif (is_array($input)) {
 			$input = array_slice($input, $offset, $length);
 		} elseif (is_string($input)) {
 			$input = $length === null
