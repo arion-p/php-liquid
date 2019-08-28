@@ -12,6 +12,7 @@
 namespace Liquid\Tag;
 
 use ArrayIterator;
+use IteratorAggregate;
 use LimitIterator;
 use Liquid\AbstractBlock;
 use Liquid\Exception\ParseException;
@@ -117,6 +118,9 @@ class TagFor extends AbstractBlock
 	{
 		$collection = $context->get($this->collectionName);
 
+		if ($collection instanceof IteratorAggregate) {
+			$collection = $collection->getIterator();
+		}
 		$isTraversable = $collection instanceof \Traversable;
 		if ($isTraversable && !($collection instanceof \Countable)) {
 			$collection = iterator_to_array($collection);
